@@ -1,4 +1,4 @@
-const CACHE_NAME = 'larkspur-wet-v22';
+const CACHE_NAME = 'larkspur-wet-v23';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
