@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Larkspur WET & FloodWatch</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="favicon.ico">
@@ -468,6 +468,38 @@
     }
     .btn-fs-toggle:active {
       transform: translateY(0);
+    }
+
+    /* In-App Sideways Rotation (Works even with phone Portrait Lock ON) */
+    .chart-card.is-fullscreen.is-sideways,
+    .cross-section-card.is-fullscreen.is-sideways {
+      top: 50% !important;
+      left: 50% !important;
+      width: 100vh !important;
+      height: 100vw !important;
+      max-width: 100vh !important;
+      max-height: 100vw !important;
+      transform: translate(-50%, -50%) rotate(90deg) !important;
+      transform-origin: center center !important;
+      overflow-y: auto !important;
+    }
+
+    .btn-rotate-toggle {
+      background: rgba(168, 85, 247, 0.15);
+      border: 1px solid rgba(168, 85, 247, 0.4);
+      color: #c084fc;
+      border-radius: 8px;
+      padding: 5px 12px;
+      font-size: 0.76rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      margin-left: 6px;
+    }
+    .btn-rotate-toggle:hover {
+      background: rgba(168, 85, 247, 0.25);
     }
 
     /* Fullscreen Overlay Mode */
@@ -1255,7 +1287,8 @@
           <input type="range" id="fsTimeSlider" min="0" max="288" value="144" oninput="onScrub(this.value)">
         </div>
         <div class="scrubber-btn-row" style="margin-bottom: 8px;">
-          <button class="chip-btn active" id="btnFsSnapLive" onclick="snapTime('now')">📍 Live Now (Center)</button>
+          <button type="button" class="btn-rotate-toggle" onclick="toggleSidewaysOrientation(event)">🔄 Turn Sideways (Landscape)</button>
+          <button class="chip-btn active" id="btnFsSnapLive" onclick="snapTime('now')">📍 Live Now</button>
           <button class="chip-btn" id="btnFsSnapNextHigh" onclick="snapTime('nexthigh')">▲ Next High Tide Peak</button>
           <button class="chip-btn" onclick="snapTime('impassable')">⚠️ Impassable (6.95')</button>
           <button class="chip-btn" onclick="snapTime('cleared')">✅ Road Cleared (&lt; 6.95')</button>
@@ -2746,7 +2779,7 @@
     // Startup Initialization
     document.addEventListener('DOMContentLoaded', () => {
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('./sw.js?v=20').catch(() => {});
+        navigator.serviceWorker.register('./sw.js?v=21').catch(() => {});
       }
       applyVehicleAndCarView();
       initHydrographDragScrub();
