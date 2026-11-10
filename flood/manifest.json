@@ -1,6 +1,6 @@
 {
-  "name": "Sparky's Flood Watch WET",
-  "short_name": "Sparky's WET",
+  "name": "CWC Marin Flood Watch WET",
+  "short_name": "CWC Marin Flood Watch WET",
   "description": "Sparky's personal hyper-local tide, storm surge, and road flood passability monitor (calibrated for Larkspur Plaza Dr, Spot #86, and Prius)",
   "start_url": "./index.html",
   "scope": "./",

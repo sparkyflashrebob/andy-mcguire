@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sparkys-wet-v51';
+const CACHE_NAME = 'sparkys-wet-v52';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
