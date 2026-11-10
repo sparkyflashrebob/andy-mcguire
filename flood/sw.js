@@ -1,7 +1,8 @@
-const CACHE_NAME = 'sparkys-wet-v43';
+const CACHE_NAME = 'sparkys-wet-v44';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
+  './map-dev.html',
   './manifest.json',
   './icon-192.png',
   './icon-512.png',
