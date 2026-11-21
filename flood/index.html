@@ -3492,6 +3492,82 @@
       }
     }
 
+    // Dual-Station Synthesis & Hydrodynamic Calibration for Corte Madera Creek:
+    // NOAA Richmond Station 9414863 (Direct Bay) + NOAA Golden Gate Station 9414290 (San Quentin Gateway)
+    // Subordinate Station 9414873 (Point San Quentin, mouth of Corte Madera Creek) follows Presidio
+    // with a +42-minute lag and 0.99 high-tide height ratio. During East Bay wind setup or harbor pileup,
+    // Richmond overpredicts the water level entering Corte Madera Creek. This algorithm bounds Corte Madera
+    // Creek to the physical San Quentin marine gateway while preserving local bay hydrodynamic influence.
+    function synthesizeCorteMaderaObs(richmondData, ggData) {
+      if (!richmondData || richmondData.length === 0) {
+        if (!ggData || ggData.length === 0) return [];
+        return ggData.map(g => {
+          const v = parseFloat(g.v);
+          return { t: g.t, v: isNaN(v) ? g.v : (v * 0.99).toFixed(3), s: g.s, f: g.f };
+        });
+      }
+
+      if (!ggData || ggData.length === 0) {
+        return richmondData;
+      }
+
+      const ggMap = new Map();
+      ggData.forEach(g => {
+        const v = parseFloat(g.v);
+        if (!isNaN(v)) {
+          const ms = new Date(g.t.replace(' ', 'T') + ':00').getTime();
+          ggMap.set(ms, v);
+        }
+      });
+
+      const synthesized = [];
+      const lagMs = 42 * 60 * 1000; // 42 min lag from Presidio to Point San Quentin
+
+      richmondData.forEach(r => {
+        const rVal = parseFloat(r.v);
+        if (isNaN(rVal)) {
+          synthesized.push(r);
+          return;
+        }
+
+        const rMs = new Date(r.t.replace(' ', 'T') + ':00').getTime();
+        const targetGgMs = rMs - lagMs;
+
+        let nearestGgVal = null;
+        let minDiff = 6 * 60 * 1000 + 1000;
+        for (const [ggMs, gVal] of ggMap.entries()) {
+          const diff = Math.abs(ggMs - targetGgMs);
+          if (diff < minDiff) {
+            minDiff = diff;
+            nearestGgVal = gVal;
+          }
+        }
+
+        let finalVal = rVal;
+        if (nearestGgVal !== null) {
+          const sqVal = nearestGgVal * 0.99; // Point San Quentin high-water ratio
+          // Dual-station calibration:
+          // Corte Madera Creek cannot exceed the San Quentin gateway + 0.04' bay gradient during East Bay wind setup.
+          if (rVal > sqVal) {
+            finalVal = Math.min(rVal, sqVal + 0.04);
+          } else {
+            finalVal = 0.70 * sqVal + 0.30 * rVal;
+          }
+        }
+
+        synthesized.push({
+          t: r.t,
+          v: finalVal.toFixed(3),
+          s: r.s,
+          f: r.f,
+          rawRichmond: rVal,
+          sqVal: nearestGgVal !== null ? (nearestGgVal * 0.99).toFixed(3) : null
+        });
+      });
+
+      return synthesized;
+    }
+
     async function fetchLiveNOAA() {
       let obsData = [];
       let predData = [];
@@ -3539,11 +3615,14 @@
           ggPredData = respPredGG.predictions;
         }
 
-        // Primary: Richmond 9414863 direct local bay water level observations; Fallback: Golden Gate 9414290
-        let isRichmondObs = false;
+        // Dual-Station Synthesis: Richmond 9414863 (Direct Bay) + Golden Gate 9414290 (San Quentin Gateway)
+        // NOAA Subordinate Station 9414873 (Point San Quentin, mouth of Corte Madera Creek) follows Presidio
+        // with +42min lag & 0.99 high-tide height ratio. During East Bay wind setup or harbor pileup, Richmond
+        // overpredicts Corte Madera Creek. We calibrate Corte Madera Creek by constraining against San Quentin.
+        let isDualCalibrated = false;
         if (respObsRichmond.data && respObsRichmond.data.length > 0) {
-          obsData = respObsRichmond.data;
-          isRichmondObs = true;
+          obsData = synthesizeCorteMaderaObs(respObsRichmond.data, respObsGG.data || []);
+          isDualCalibrated = true;
           const latestObs = parseFloat(obsData[obsData.length - 1].v);
           const latestTime = obsData[obsData.length - 1].t;
           if (predData.length > 0) {
@@ -3555,7 +3634,7 @@
             }
           }
         } else if (respObsGG.data && respObsGG.data.length > 0) {
-          obsData = respObsGG.data;
+          obsData = synthesizeCorteMaderaObs([], respObsGG.data);
           const latestObs = parseFloat(obsData[obsData.length - 1].v);
           const latestTime = obsData[obsData.length - 1].t;
           if (ggPredData.length > 0) {
@@ -3925,7 +4004,7 @@
         const coastVal = document.getElementById('modalCoastSurgeVal');
         const creekVal = document.getElementById('modalCreekVal');
         const deltaVal = document.getElementById('modalDeltaVal');
-        if (bayVal) bayVal.textContent = `${liveSurge >= 0 ? '+' : ''}${liveSurge.toFixed(2)} ft (Richmond 9414863)`;
+        if (bayVal) bayVal.textContent = `${liveSurge >= 0 ? '+' : ''}${liveSurge.toFixed(2)} ft (San Quentin & Richmond Calibrated)`;
         if (coastVal) coastVal.textContent = `${liveCoastSurge >= 0 ? '+' : ''}${liveCoastSurge.toFixed(2)} ft (Monterey 9413450)`;
         if (creekVal) creekVal.textContent = `${liveCreekFlowCfs} cfs (+${liveCreekRunoffFt.toFixed(2)}' backwater head)`;
         if (deltaVal) {
@@ -5775,7 +5854,7 @@
         if (nextHighMarker) nextHighMarker.style.display = 'none';
         if (peaksGroup) peaksGroup.innerHTML = '';
 
-        if (leg1) { leg1.textContent = '━ Bay Surge (Richmond)'; leg1.style.color = '#fbbf24'; }
+        if (leg1) { leg1.textContent = '━ Bay Surge (San Quentin / Richmond)'; leg1.style.color = '#fbbf24'; }
         if (leg2) { leg2.textContent = '╌ Coastal Surge (Monterey)'; leg2.style.color = '#f43f5e'; }
         if (leg3) { leg3.textContent = '┈ Astro Baseline'; leg3.style.color = '#64748b'; }
 
@@ -6031,7 +6110,7 @@
       applyHashTab();
       window.addEventListener('hashchange', applyHashTab);
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('./sw.js?v=sparkys-wet-v68').catch(() => {});
+        navigator.serviceWorker.register('./sw.js?v=sparkys-wet-v69').catch(() => {});
       }
       applyVehicleAndCarView();
       initHydrographDragScrub();
@@ -6207,11 +6286,11 @@
         <!-- San Francisco Bay Surge -->
         <div style="padding: 12px; border-radius: 12px; border: 1px solid rgba(56, 189, 248, 0.35); background: rgba(56, 189, 248, 0.08);">
           <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px;">
-            <div style="font-weight: 700; color: #38bdf8; font-size: 0.88rem;">🏛️ SF Bay Water Level (Richmond Station 9414863)</div>
+            <div style="font-weight: 700; color: #38bdf8; font-size: 0.88rem;">🏛️ SF Bay Water Level (Point San Quentin &amp; Richmond Synthesis)</div>
             <div id="modalBaySurgeVal" style="font-family: var(--mono); font-size: 0.78rem; color: #38bdf8; font-weight: 700;">+1.04 ft</div>
           </div>
           <div style="font-size: 0.76rem; color: #e2e8f0; line-height: 1.35;">
-            Authoritative local bay observation inside San Francisco Bay (6 miles from Corte Madera Creek). Avoids oceanic wave setup and coastal surf distortion.
+            Dual-station hydrodynamic synthesis: fuses NOAA Richmond Station 9414863 with Point San Quentin (Station 9414873 at mouth of Corte Madera Creek via SF Presidio gateway). Prevents East Bay wind setup from inflating Corte Madera Creek water levels.
           </div>
         </div>
 
@@ -6252,7 +6331,7 @@
         <div style="padding: 12px; border-radius: 12px; border: 1px solid rgba(148, 163, 184, 0.25); background: rgba(148, 163, 184, 0.05);">
           <div style="font-weight: 700; color: #cbd5e1; font-size: 0.84rem; margin-bottom: 4px;">🎯 Adaptive Multi-Horizon Forecast Blending</div>
           <div style="font-size: 0.75rem; color: #94a3b8; line-height: 1.35;">
-            • <b>0–2h Nowcast</b>: 100% live Richmond residual calibration.<br>
+            • <b>0–2h Nowcast</b>: 100% live dual-station calibrated residual (San Quentin gateway &amp; Richmond).<br>
             • <b>2–12h Sliding Window</b>: Exponential decay blending live surge with sustained coast-wide ocean baseline.<br>
             • <b>12–48h Hydrologic Engine</b>: Astronomical tides + regional Kelvin baseline + QPF storm runoff + Delta outflow.
           </div>
